@@ -1,62 +1,51 @@
-import requests
 import telebot
+import json
 
-# -----------------------------
-# Telegram Bot setup
-# -----------------------------
 BOT_TOKEN = "8799375203:AAEbldBCM66UiShErsHzHxRO9nejgot7kO0"
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Example chat_id (web order notify)
-WEB_CHAT_ID = "8324590734"
+# Simple in-memory database (replace with real DB later)
+users = {}  # {chat_id: {"role":"User", "balance":100}}
+products = {"Free Fire Diamond": 10, "RGG Code": 5}
 
-# -----------------------------
-# Command Handlers
-# -----------------------------
+# ------------------ Commands ------------------
+
 @bot.message_handler(commands=['start'])
 def start(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "👋 Welcome to Order Bot!")
+    users.setdefault(chat_id, {"role": "User", "balance": 0})
+    bot.send_message(chat_id, "💎 Welcome! Use /products to see available products.")
 
-@bot.message_handler(commands=['help'])
-def help_command(message):
+@bot.message_handler(commands=['products'])
+def products_list(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "Commands:\n/start\n/help\n/topup\n/orders")
+    msg = "💎 Product List & Prices:\n"
+    for p, price in products.items():
+        msg += f"{p} - ${price}\n"
+    bot.send_message(chat_id, msg)
 
-@bot.message_handler(commands=['topup'])
-def topup(message):
+@bot.message_handler(commands=['wallet'])
+def wallet(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "💰 Topup service available!")
+    balance = users.get(chat_id, {}).get("balance", 0)
+    bot.send_message(chat_id, f"💎 Your balance: {balance} LKR")
 
-@bot.message_handler(commands=['orders'])
-def orders(message):
+@bot.message_handler(commands=['add'])
+def add_balance(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "🛒 Send web orders to this bot automatically!")
+    user = users.get(chat_id)
+    if not user or user.get("role") != "Admin":
+        bot.send_message(chat_id, "❌ Only Admin can add balance.")
+        return
+    try:
+        amount = int(message.text.split()[1])
+        # for simplicity add to self (real case add to target user)
+        user["balance"] += amount
+        bot.send_message(chat_id, f"💎 Added {amount} LKR. New balance: {user['balance']}")
+    except:
+        bot.send_message(chat_id, "❌ Usage: /add <amount>")
 
-# -----------------------------
-# Function to send web order to Telegram
-# -----------------------------
-def send_web_order(customer_name, amount):
-    message = f"🛒 New Order Received!\nCustomer: {customer_name}\nAmount: ${amount}"
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": WEB_CHAT_ID,
-        "text": message
-    }
-    response = requests.post(url, data=payload)
-    if response.status_code == 200:
-        print("Message sent successfully ✅")
-    else:
-        print("Failed to send message ❌", response.text)
-
-# -----------------------------
-# Example Web Order Call
-# -----------------------------
-send_web_order("John Doe", 10)
-
-# -----------------------------
-# Run bot
-# -----------------------------
+# ------------------ Run Bot ------------------
 if __name__ == "__main__":
-    print("Bot is running...")
+    print("Bot running...")
     bot.infinity_polling()
